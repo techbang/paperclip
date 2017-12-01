@@ -236,9 +236,19 @@ module Paperclip
     # the instance's errors and returns false, cancelling the save.
     def save
       flush_deletes unless @options[:keep_old_files]
+      process = only_process
+      if process.any? && !process.include?(:original)
+        @queued_for_write.except!(:original)
+      end
       flush_writes
       @dirty = false
       true
+    end
+
+    def only_process
+      only_process = @options[:only_process].dup
+      only_process = only_process.call(self) if only_process.respond_to?(:call)
+      only_process.map(&:to_sym)
     end
 
     # Clears out the attachment. Has the same effect as previously assigning
@@ -335,7 +345,7 @@ module Paperclip
       begin
         assign(self)
         save
-        instance.save
+        instance.save if only_process.include?(:original)
       rescue Errno::EACCES => e
         warn "#{e} - skipping file."
         false
